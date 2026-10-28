@@ -1,0 +1,1999 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D English Adventure: Direction & Places Around Us</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Fredoka & Nunito for a colorful educational vibe -->
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@600;700;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Nunito', sans-serif;
+            user-select: none;
+            background: #87CEEB;
+            touch-action: none;
+        }
+        h1, h2, h3, .font-title {
+            font-family: 'Fredoka', sans-serif;
+        }
+        #canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 1;
+        }
+        .ui-layer {
+            position: relative;
+            z-index: 10;
+            pointer-events: none;
+        }
+        .interactive {
+            pointer-events: auto;
+        }
+        /* Custom 3D Game Buttons */
+        .btn-3d {
+            transition: all 0.12s cubic-bezier(0.4, 0, 0.2, 1);
+            transform: translateY(0);
+        }
+        .btn-3d:active:not(:disabled) {
+            transform: translateY(3px);
+            box-shadow: 0 1px 0 0 rgba(0,0,0,0.25) !important;
+        }
+        .btn-3d:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        /* Floating 3D Building Labels */
+        .building-label {
+            position: absolute;
+            transform: translate(-50%, -100%);
+            pointer-events: none;
+            transition: opacity 0.2s, transform 0.2s;
+            white-space: nowrap;
+            z-index: 5;
+        }
+        @keyframes pulse-ring {
+            0% { transform: translate(-50%, -100%) scale(0.95); }
+            50% { transform: translate(-50%, -100%) scale(1.06); }
+            100% { transform: translate(-50%, -100%) scale(0.95); }
+        }
+        .target-badge {
+            animation: pulse-ring 1.5s infinite ease-in-out;
+        }
+        /* Mini-Map Grid Styling */
+        .minimap-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            grid-template-rows: repeat(7, 1fr);
+            gap: 2px;
+        }
+    </style>
+</head>
+<body class="w-screen h-screen overflow-hidden relative">
+
+    <!-- 3D Canvas Container -->
+    <div id="canvas-container"></div>
+
+    <!-- Floating HTML Labels for 3D Buildings -->
+    <div id="labels-container" class="absolute inset-0 pointer-events-none z-5 overflow-hidden"></div>
+
+    <!-- START SCREEN MODAL: INPUT NAMA, KELAS & INSTRUKSI -->
+    <div id="start-modal" class="fixed inset-0 z-50 bg-slate-900/75 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
+        <div class="bg-white rounded-3xl max-w-lg w-full p-5 sm:p-7 shadow-2xl border-4 border-sky-400 my-auto">
+            <div class="flex items-center gap-3 mb-4">
+                <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-3xl shadow-lg shrink-0">
+                    <i class="fa-solid fa-compass"></i>
+                </div>
+                <div>
+                    <span class="bg-sky-100 text-sky-700 text-[11px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider">English 3D Interactive Game</span>
+                    <h1 class="font-title font-bold text-2xl sm:text-3xl text-slate-800 leading-tight">Places Around Us</h1>
+                    <p class="text-xs sm:text-sm font-bold text-slate-500">Giving Directions & Public Places</p>
+                </div>
+            </div>
+
+            <!-- Form Input Nama & Kelas -->
+            <div class="space-y-3 bg-slate-50 p-4 rounded-2xl border-2 border-slate-200 mb-4">
+                <div>
+                    <label class="block text-xs sm:text-sm font-extrabold text-slate-700 mb-1">
+                        <i class="fa-solid fa-user-graduate text-sky-500 mr-1"></i> Nama Lengkap Siswa (Student Name)
+                    </label>
+                    <input id="input-student-name" type="text" placeholder="Contoh: Budi Santoso" maxlength="40"
+                        class="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-300 focus:border-sky-500 focus:outline-none font-bold text-slate-800 text-sm sm:text-base bg-white">
+                </div>
+                <div>
+                    <label class="block text-xs sm:text-sm font-extrabold text-slate-700 mb-1">
+                        <i class="fa-solid fa-school text-amber-500 mr-1"></i> Kelas (Class / Grade)
+                    </label>
+                    <input id="input-student-class" type="text" placeholder="Contoh: VI-A / Kelas 6 SD / SMP 7B" maxlength="25"
+                        class="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-300 focus:border-sky-500 focus:outline-none font-bold text-slate-800 text-sm sm:text-base bg-white">
+                </div>
+                <p id="start-error" class="text-xs font-extrabold text-rose-600 hidden">
+                    <i class="fa-solid fa-circle-exclamation mr-1"></i> Harap isi Nama Lengkap dan Kelas terlebih dahulu!
+                </p>
+            </div>
+
+            <!-- Ringkasan Instruksi Singkat -->
+            <div class="bg-amber-50 border-2 border-amber-200 rounded-2xl p-3.5 mb-5 text-xs sm:text-sm text-slate-700 space-y-1.5">
+                <div class="font-title font-bold text-amber-900 flex items-center gap-1.5 text-sm">
+                    <i class="fa-solid fa-circle-info text-amber-600"></i> Cara Bermain (How to Play):
+                </div>
+                <p class="font-semibold">1. Baca misi tujuan di bagian atas layar atau tekan ikon 🔊 untuk mendengar suara Bahasa Inggris.</p>
+                <p class="font-semibold">2. Gunakan tombol arah (<b>Turn Left, Go Straight, Cross Street, Turn Right, Turn Around</b>) di bawah layar untuk mengarahkan <b>Leo</b>.</p>
+                <p class="font-semibold">3. Geser layar 3D (sentuh/mouse) untuk memutar kamera. Selesaikan misi dan unduh <b>Sertifikat Nilai</b>!</p>
+            </div>
+
+            <div class="flex flex-col sm:flex-row gap-2.5">
+                <button onclick="toggleHowToPlayModal(true)" class="btn-3d sm:w-1/3 bg-slate-200 hover:bg-slate-300 text-slate-700 font-title font-bold py-3 px-4 rounded-2xl shadow-[0_4px_0_0_#94a3b8] text-sm flex items-center justify-center gap-1.5">
+                    <i class="fa-solid fa-circle-question"></i> Panduan Lengkap
+                </button>
+                <button onclick="startGameSession()" class="btn-3d sm:w-2/3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white font-title font-bold text-base sm:text-lg py-3 px-6 rounded-2xl shadow-[0_5px_0_0_#047857] flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-play"></i> Mulai Bermain (Start Game)
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Compact HUD UI Layer (Unobstructed 3D Viewport for HP, Laptop & IFP) -->
+    <div class="ui-layer w-full h-full flex flex-col justify-between p-2 sm:p-3.5">
+
+        <!-- TOP BAR: Compact Stats, Mission Strip & Quick Action Icons -->
+        <div class="w-full flex flex-col gap-1.5 sm:gap-2">
+            <div class="w-full flex flex-wrap items-center justify-between gap-1.5 sm:gap-2">
+                
+                <!-- Left: Student Identity & Compact Score Pill -->
+                <div class="interactive flex items-center gap-2 bg-white/90 backdrop-blur-md px-2.5 py-1.5 rounded-2xl shadow-md border-b-2 border-sky-300">
+                    <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-sm shadow-sm shrink-0">
+                        <i class="fa-solid fa-user-astronaut"></i>
+                    </div>
+                    <div class="pr-2 border-r border-slate-200 max-w-[115px] sm:max-w-[180px]">
+                        <div id="hud-student-name" class="text-xs sm:text-sm font-title font-bold text-slate-800 truncate leading-tight">Siswa</div>
+                        <div id="hud-student-class" class="text-[10px] font-extrabold text-sky-600 truncate leading-tight">Kelas -</div>
+                    </div>
+
+                    <div class="flex items-center gap-1.5 sm:gap-2 text-center">
+                        <div class="bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-lg">
+                            <span class="text-[9px] uppercase font-extrabold text-amber-600 block leading-none">Misi</span>
+                            <span id="level-display" class="text-xs sm:text-sm font-title font-bold text-amber-700">1/6</span>
+                        </div>
+                        <div class="bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-lg">
+                            <span class="text-[9px] uppercase font-extrabold text-emerald-600 block leading-none">Nilai</span>
+                            <span id="score-display" class="text-xs sm:text-sm font-title font-bold text-emerald-700">0</span>
+                        </div>
+                        <div class="bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-lg hidden sm:block">
+                            <span class="text-[9px] uppercase font-extrabold text-purple-600 block leading-none">Langkah</span>
+                            <span id="steps-display" class="text-xs sm:text-sm font-title font-bold text-purple-700">0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Center: Slim Mission Pill -->
+                <div class="interactive flex-1 min-w-[240px] max-w-xl bg-gradient-to-r from-indigo-600 via-blue-600 to-sky-500 text-white px-3 py-1.5 rounded-2xl shadow-lg border-b-2 border-indigo-800 flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-2 min-w-0">
+                        <div id="mission-icon" class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-white/20 flex items-center justify-center text-lg sm:text-xl shrink-0">
+                            🏥
+                        </div>
+                        <div class="min-w-0">
+                            <div class="flex items-center gap-1.5">
+                                <span class="bg-amber-300 text-amber-950 text-[9px] font-extrabold px-1.5 py-0.2 rounded-full uppercase shrink-0">Target</span>
+                                <span id="mission-place-title" class="font-title font-bold text-xs sm:text-sm text-amber-200 truncate">Go to the Hospital!</span>
+                            </div>
+                            <p id="mission-clue" class="text-[10px] sm:text-xs text-white/95 font-semibold truncate">
+                                "Doctors and nurses help sick people here."
+                            </p>
+                        </div>
+                    </div>
+                    <button onclick="speakMission()" title="Dengarkan Misi (Listen)" class="btn-3d bg-white text-indigo-600 hover:bg-indigo-50 w-8 h-8 rounded-xl flex items-center justify-center shadow shrink-0">
+                        <i class="fa-solid fa-volume-high text-xs sm:text-sm"></i>
+                    </button>
+                </div>
+
+                <!-- Right: Compact Action Buttons (Instructions, Vocab, Radar, Camera, Certificate, Fullscreen) -->
+                <div class="interactive flex items-center gap-1 sm:gap-1.5 ml-auto sm:ml-0">
+                    <button onclick="toggleHintBar()" title="Petunjuk Rute (Route Hint)" class="btn-3d bg-amber-400 hover:bg-amber-500 text-amber-950 font-title font-bold px-2.5 py-2 rounded-xl text-xs flex items-center gap-1 shadow-[0_3px_0_0_#b45309]">
+                        <i class="fa-solid fa-lightbulb"></i>
+                        <span class="hidden xl:inline">Petunjuk</span>
+                    </button>
+                    <button onclick="toggleHowToPlayModal(true)" title="Instruksi Permainan" class="btn-3d bg-indigo-500 hover:bg-indigo-600 text-white font-title font-semibold px-2.5 py-2 rounded-xl text-xs flex items-center gap-1 shadow-[0_3px_0_0_#3730a3]">
+                        <i class="fa-solid fa-circle-question"></i>
+                        <span class="hidden xl:inline">Instruksi</span>
+                    </button>
+                    <button onclick="toggleVocabularyModal()" title="Kamus Kosakata (Vocab)" class="btn-3d bg-rose-500 hover:bg-rose-600 text-white font-title font-semibold px-2.5 py-2 rounded-xl text-xs flex items-center gap-1 shadow-[0_3px_0_0_#9f1239]">
+                        <i class="fa-solid fa-book-open"></i>
+                        <span class="hidden xl:inline">Kamus</span>
+                    </button>
+                    <button onclick="toggleRadarMap()" title="Peta Radar (Mini-Map)" class="btn-3d bg-emerald-500 hover:bg-emerald-600 text-white font-title font-semibold px-2.5 py-2 rounded-xl text-xs flex items-center gap-1 shadow-[0_3px_0_0_#047857]">
+                        <i class="fa-solid fa-map"></i>
+                        <span class="hidden xl:inline">Peta</span>
+                    </button>
+                    <button onclick="toggleCameraView()" id="cam-btn" title="Ubah Sudut Kamera" class="btn-3d bg-sky-500 hover:bg-sky-600 text-white font-title font-semibold px-2.5 py-2 rounded-xl text-xs flex items-center gap-1 shadow-[0_3px_0_0_#0369a1]">
+                        <i class="fa-solid fa-video"></i>
+                        <span id="cam-label" class="hidden xl:inline">Kamera</span>
+                    </button>
+                    <button onclick="openCertificateModal()" title="Lihat & Unduh Sertifikat Nilai" class="btn-3d bg-purple-600 hover:bg-purple-700 text-white font-title font-semibold px-2.5 py-2 rounded-xl text-xs flex items-center gap-1 shadow-[0_3px_0_0_#4c1d95]">
+                        <i class="fa-solid fa-award"></i>
+                        <span class="hidden lg:inline">Sertifikat</span>
+                    </button>
+                    <button onclick="toggleFullScreen()" title="Layar Penuh (IFP / Laptop)" class="btn-3d bg-slate-700 hover:bg-slate-800 text-white px-2.5 py-2 rounded-xl text-xs flex items-center justify-center shadow-[0_3px_0_0_#1e293b]">
+                        <i id="fs-icon" class="fa-solid fa-expand"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Collapsible Route Hint Strip & Floating Mini-Map (Hidden by default so 3D view is 100% clear) -->
+            <div class="w-full flex justify-between items-start pointer-events-none">
+                <!-- Toggleable Route Hint Pill -->
+                <div id="hint-popover" class="interactive hidden bg-white/95 backdrop-blur-md px-3.5 py-2 rounded-2xl shadow-lg border-2 border-amber-300 max-w-md flex items-center justify-between gap-3">
+                    <div class="text-xs text-slate-700 font-bold leading-snug">
+                        <span class="text-amber-600 font-extrabold"><i class="fa-solid fa-compass mr-1"></i>Hint:</span>
+                        <span id="live-route-hint">Look at Leo's arrow on the ground!</span>
+                        <span id="facing-badge" class="ml-1.5 bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded text-[10px] font-extrabold">North</span>
+                    </div>
+                    <button onclick="toggleHintBar()" class="text-slate-400 hover:text-slate-600 text-xs px-1">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+
+                <!-- Toggleable Radar Mini-Map -->
+                <div id="radar-popover" class="interactive hidden ml-auto bg-white/95 backdrop-blur-md p-2.5 rounded-2xl shadow-xl border-2 border-sky-300 flex-col items-center">
+                    <div class="w-full flex items-center justify-between text-[10px] font-title font-bold text-slate-700 mb-1">
+                        <span><i class="fa-solid fa-map text-sky-500 mr-1"></i>Town Radar</span>
+                        <button onclick="toggleRadarMap()" class="text-slate-400 hover:text-slate-700"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <div id="minimap" class="minimap-grid w-24 h-24 sm:w-28 sm:h-28 bg-emerald-200 p-1 rounded-xl border border-slate-300 shadow-inner"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- CENTER: Non-blocking Speech Toast -->
+        <div class="w-full flex justify-center pointer-events-none my-auto">
+            <div id="speech-toast" class="transition-all duration-300 opacity-0 transform translate-y-3 bg-slate-900/90 text-white px-4 py-2 rounded-2xl shadow-xl border border-amber-400 text-center max-w-sm">
+                <div id="toast-en" class="font-title font-bold text-sm sm:text-base text-amber-300">"Go straight ahead!"</div>
+                <div id="toast-id" class="text-[11px] text-slate-200 font-semibold">Jalan lurus ke depan!</div>
+            </div>
+        </div>
+
+        <!-- BOTTOM BAR: Compact Direction Controls for HP, Laptop & IFP -->
+        <div class="w-full flex flex-col items-center">
+            <div class="interactive bg-white/90 backdrop-blur-md p-1.5 sm:p-2.5 rounded-2xl sm:rounded-3xl shadow-xl border-b-4 border-slate-300 w-full max-w-3xl">
+                <div class="grid grid-cols-5 gap-1.5 sm:gap-2.5">
+                    <!-- TURN LEFT -->
+                    <button id="btn-left" onclick="handleCommand('TURN_LEFT')" class="btn-3d bg-gradient-to-b from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-amber-950 py-2 px-1 sm:p-2.5 rounded-xl sm:rounded-2xl shadow-[0_4px_0_0_#b45309] flex flex-col items-center justify-center group">
+                        <div class="w-7 h-7 sm:w-9 sm:h-9 rounded-lg bg-white/35 flex items-center justify-center text-sm sm:text-lg mb-0.5 group-hover:scale-110 transition-transform">
+                            <i class="fa-solid fa-share -scale-x-100"></i>
+                        </div>
+                        <span class="font-title font-bold text-[11px] sm:text-sm leading-tight">Turn Left</span>
+                        <span class="text-[9px] sm:text-[10px] font-bold opacity-85 leading-tight">Belok Kiri</span>
+                    </button>
+
+                    <!-- GO STRAIGHT -->
+                    <button id="btn-straight" onclick="handleCommand('GO_STRAIGHT')" class="btn-3d bg-gradient-to-b from-emerald-400 to-emerald-500 hover:from-emerald-300 hover:to-emerald-400 text-emerald-950 py-2 px-1 sm:p-2.5 rounded-xl sm:rounded-2xl shadow-[0_4px_0_0_#047857] flex flex-col items-center justify-center group">
+                        <div class="w-7 h-7 sm:w-9 sm:h-9 rounded-lg bg-white/35 flex items-center justify-center text-sm sm:text-lg mb-0.5 group-hover:scale-110 transition-transform">
+                            <i class="fa-solid fa-arrow-up"></i>
+                        </div>
+                        <span class="font-title font-bold text-[11px] sm:text-sm leading-tight">Go Straight</span>
+                        <span class="text-[9px] sm:text-[10px] font-bold opacity-85 leading-tight">Jalan Lurus</span>
+                    </button>
+
+                    <!-- CROSS THE STREET -->
+                    <button id="btn-cross" onclick="handleCommand('CROSS_STREET')" class="btn-3d bg-gradient-to-b from-rose-400 to-rose-500 hover:from-rose-300 hover:to-rose-400 text-white py-2 px-1 sm:p-2.5 rounded-xl sm:rounded-2xl shadow-[0_4px_0_0_#be123c] flex flex-col items-center justify-center group">
+                        <div class="w-7 h-7 sm:w-9 sm:h-9 rounded-lg bg-white/25 flex items-center justify-center text-sm sm:text-lg mb-0.5 group-hover:scale-110 transition-transform">
+                            <i class="fa-solid fa-person-walking-dashed-line-arrow-right"></i>
+                        </div>
+                        <span class="font-title font-bold text-[11px] sm:text-sm leading-tight">Cross Street</span>
+                        <span class="text-[9px] sm:text-[10px] font-bold opacity-90 leading-tight">Seberangi</span>
+                    </button>
+
+                    <!-- TURN RIGHT -->
+                    <button id="btn-right" onclick="handleCommand('TURN_RIGHT')" class="btn-3d bg-gradient-to-b from-sky-400 to-sky-500 hover:from-sky-300 hover:to-sky-400 text-sky-950 py-2 px-1 sm:p-2.5 rounded-xl sm:rounded-2xl shadow-[0_4px_0_0_#0369a1] flex flex-col items-center justify-center group">
+                        <div class="w-7 h-7 sm:w-9 sm:h-9 rounded-lg bg-white/35 flex items-center justify-center text-sm sm:text-lg mb-0.5 group-hover:scale-110 transition-transform">
+                            <i class="fa-solid fa-share"></i>
+                        </div>
+                        <span class="font-title font-bold text-[11px] sm:text-sm leading-tight">Turn Right</span>
+                        <span class="text-[9px] sm:text-[10px] font-bold opacity-85 leading-tight">Belok Kanan</span>
+                    </button>
+
+                    <!-- TURN AROUND -->
+                    <button id="btn-around" onclick="handleCommand('TURN_AROUND')" class="btn-3d bg-gradient-to-b from-purple-400 to-purple-500 hover:from-purple-300 hover:to-purple-400 text-purple-950 py-2 px-1 sm:p-2.5 rounded-xl sm:rounded-2xl shadow-[0_4px_0_0_#6d28d9] flex flex-col items-center justify-center group">
+                        <div class="w-7 h-7 sm:w-9 sm:h-9 rounded-lg bg-white/35 flex items-center justify-center text-sm sm:text-lg mb-0.5 group-hover:scale-110 transition-transform">
+                            <i class="fa-solid fa-rotate-left"></i>
+                        </div>
+                        <span class="font-title font-bold text-[11px] sm:text-sm leading-tight">Turn Around</span>
+                        <span class="text-[9px] sm:text-[10px] font-bold opacity-85 leading-tight">Putar Balik</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL INSTRUKSI PERMAINAN (HOW TO PLAY) -->
+    <div id="howto-modal" class="fixed inset-0 z-50 bg-slate-900/65 backdrop-blur-sm hidden items-center justify-center p-4">
+        <div class="bg-white rounded-3xl max-w-xl w-full p-5 sm:p-6 shadow-2xl border-4 border-indigo-400 max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center justify-between pb-3 border-b-2 border-slate-100">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-10 h-10 rounded-xl bg-indigo-500 text-white flex items-center justify-center text-lg">
+                        <i class="fa-solid fa-gamepad"></i>
+                    </div>
+                    <div>
+                        <h2 class="font-title font-bold text-lg sm:text-xl text-slate-800">Instruksi Permainan (How to Play)</h2>
+                        <p class="text-xs text-slate-500 font-bold">Panduan Bermain di HP, Laptop, & Layar IFP</p>
+                    </div>
+                </div>
+                <button onclick="toggleHowToPlayModal(false)" class="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <div class="space-y-3 mt-4 text-xs sm:text-sm text-slate-700 font-semibold">
+                <div class="bg-indigo-50 p-3.5 rounded-2xl border border-indigo-200">
+                    <h3 class="font-title font-bold text-indigo-900 text-sm mb-1"><i class="fa-solid fa-bullseye mr-1.5"></i>1. Pahami Misi Tujuan (Mission Target)</h3>
+                    <p>Perhatikan kotak misi berwarna biru di bagian atas layar. Tekan tombol speaker <b>🔊</b> untuk mendengarkan petunjuk kalimat dalam Bahasa Inggris.</p>
+                </div>
+
+                <div class="bg-emerald-50 p-3.5 rounded-2xl border border-emerald-200">
+                    <h3 class="font-title font-bold text-emerald-900 text-sm mb-1"><i class="fa-solid fa-arrows-split-up-and-left mr-1.5"></i>2. Gunakan Tombol Direction Bahasa Inggris</h3>
+                    <ul class="list-disc list-inside space-y-1">
+                        <li><b>Turn Left / Turn Right:</b> Memutar arah hadap Leo ke kiri atau ke kanan (perhatikan panah hijau di kaki Leo).</li>
+                        <li><b>Go Straight:</b> Berjalan maju 1 blok jalan sesuai arah panah hijau Leo.</li>
+                        <li><b>Cross Street:</b> Menyeberangi persimpangan lurus sejauh 2 blok sekaligus.</li>
+                        <li><b>Turn Around:</b> Memutar balik badan Leo 180 derajat.</li>
+                    </ul>
+                </div>
+
+                <div class="bg-amber-50 p-3.5 rounded-2xl border border-amber-200">
+                    <h3 class="font-title font-bold text-amber-900 text-sm mb-1"><i class="fa-solid fa-hand-pointer mr-1.5"></i>3. Kontrol Layar Sentuh (HP / IFP) & Keyboard</h3>
+                    <p>Geser layar (<i>touch drag</i> atau <i>mouse drag</i>) untuk memutar kamera 3D melihat sekeliling kota. Di Laptop, kamu juga bisa memakai tombol <b>Panah Keyboard / WASD</b> dan <b>Spasi</b>.</p>
+                </div>
+
+                <div class="bg-purple-50 p-3.5 rounded-2xl border border-purple-200">
+                    <h3 class="font-title font-bold text-purple-900 text-sm mb-1"><i class="fa-solid fa-award mr-1.5"></i>4. Penilaian & Sertifikat Hasil Belajar</h3>
+                    <p>Semakin sedikit langkah yang digunakan untuk sampai ke titik kuning di depan gedung tujuan, semakin tinggi skor yang didapat. Kamu bisa mengunduh <b>Sertifikat Nilai</b> kapan saja melalui tombol <b>Sertifikat</b> atau setelah menyelesaikan seluruh misi!</p>
+                </div>
+            </div>
+
+            <button onclick="toggleHowToPlayModal(false)" class="btn-3d mt-5 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-title font-bold py-3 rounded-2xl shadow-[0_4px_0_0_#312e81]">
+                Mengerti! Kembali ke Permainan
+            </button>
+        </div>
+    </div>
+
+    <!-- LEVEL SUCCESS MODAL -->
+    <div id="success-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4">
+        <div class="bg-white rounded-3xl max-w-md w-full p-6 text-center shadow-2xl border-4 border-amber-400 transform transition-all">
+            <div id="modal-emoji" class="w-16 h-16 sm:w-20 sm:h-20 mx-auto rounded-3xl bg-amber-100 flex items-center justify-center text-4xl sm:text-5xl mb-3 shadow-inner">
+                🎉
+            </div>
+            <span id="modal-badge" class="bg-emerald-100 text-emerald-800 text-xs font-extrabold px-3 py-1 rounded-full uppercase">Destination Reached!</span>
+            <h2 id="modal-title" class="font-title font-bold text-xl sm:text-2xl text-slate-800 mt-2">You arrived at the Hospital!</h2>
+            <p id="modal-desc" class="text-xs sm:text-sm text-slate-600 font-semibold mt-2 bg-slate-50 p-3 rounded-2xl border border-slate-200">
+                "The <b>Hospital</b> is <b>opposite</b> the School and <b>next to</b> the Main Road."
+            </p>
+            <div class="grid grid-cols-2 gap-3 my-4">
+                <div class="bg-amber-50 p-2.5 rounded-xl border border-amber-200">
+                    <span class="text-xs text-amber-700 font-bold block">Points Earned</span>
+                    <span id="modal-points" class="font-title font-bold text-xl text-amber-600">+100</span>
+                </div>
+                <div class="bg-indigo-50 p-2.5 rounded-xl border border-indigo-200">
+                    <span class="text-xs text-indigo-700 font-bold block">Steps Used</span>
+                    <span id="modal-steps" class="font-title font-bold text-xl text-indigo-600">4 Steps</span>
+                </div>
+            </div>
+            <div class="flex flex-col sm:flex-row gap-2.5">
+                <button onclick="openCertificateModal()" class="btn-3d sm:w-1/2 bg-purple-600 hover:bg-purple-700 text-white font-title font-bold text-sm py-3 px-4 rounded-2xl shadow-[0_4px_0_0_#4c1d95]">
+                    <i class="fa-solid fa-award mr-1"></i> Lihat Sertifikat
+                </button>
+                <button onclick="nextMission()" class="btn-3d sm:w-1/2 bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-title font-bold text-base py-3 px-4 rounded-2xl shadow-[0_4px_0_0_#047857]">
+                    Next Mission <i class="fa-solid fa-arrow-right ml-1"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- CERTIFICATE PREVIEW & DOWNLOAD MODAL -->
+    <div id="certificate-modal" class="fixed inset-0 z-50 bg-slate-900/75 backdrop-blur-md hidden items-center justify-center p-3 sm:p-6 overflow-y-auto">
+        <div class="bg-white rounded-3xl max-w-3xl w-full p-4 sm:p-6 shadow-2xl border-4 border-amber-400 my-auto">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-200 mb-3">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center text-lg">
+                        <i class="fa-solid fa-certificate"></i>
+                    </div>
+                    <div>
+                        <h2 class="font-title font-bold text-lg sm:text-xl text-slate-800">Sertifikat Hasil Belajar (Certificate of Achievement)</h2>
+                        <p class="text-xs text-slate-500 font-bold">Unduh sebagai bukti nilai mata pelajaran Bahasa Inggris</p>
+                    </div>
+                </div>
+                <button onclick="closeCertificateModal()" class="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <!-- High-Resolution HTML5 Canvas for Certificate Rendering -->
+            <div class="w-full bg-slate-100 p-2 rounded-2xl border border-slate-300 flex justify-center">
+                <canvas id="certificate-canvas" width="1200" height="850" class="w-full h-auto max-h-[58vh] object-contain rounded-xl shadow-md bg-white"></canvas>
+            </div>
+
+            <div class="flex flex-col sm:flex-row items-center justify-between gap-3 mt-4">
+                <button onclick="closeCertificateModal()" class="btn-3d w-full sm:w-auto bg-slate-200 hover:bg-slate-300 text-slate-700 font-title font-bold py-3 px-5 rounded-2xl shadow-[0_4px_0_0_#94a3b8] text-sm">
+                    Kembali Bermain
+                </button>
+                <button onclick="downloadCertificateImage()" class="btn-3d w-full sm:w-auto bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white font-title font-bold py-3 px-6 rounded-2xl shadow-[0_5px_0_0_#b45309] text-sm sm:text-base flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-download"></i> Download Sertifikat (PNG)
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- VOCABULARY & PREPOSITIONS GUIDE MODAL -->
+    <div id="vocab-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4">
+        <div class="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border-4 border-sky-400 max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center justify-between pb-3 border-b-2 border-slate-100">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-10 h-10 rounded-xl bg-rose-500 text-white flex items-center justify-center text-lg">
+                        <i class="fa-solid fa-book-open"></i>
+                    </div>
+                    <div>
+                        <h2 class="font-title font-bold text-xl text-slate-800">English Vocabulary: Directions & Places</h2>
+                        <p class="text-xs text-slate-500 font-bold">Kosakata Arah & Tempat Umum di Sekitar Kita</p>
+                    </div>
+                </div>
+                <button onclick="toggleVocabularyModal()" class="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                <div class="bg-sky-50 p-4 rounded-2xl border border-sky-200">
+                    <h3 class="font-title font-bold text-sky-800 text-base mb-2"><i class="fa-solid fa-signs-post mr-1.5"></i>Giving Directions (Petunjuk Arah)</h3>
+                    <ul class="space-y-2 text-xs sm:text-sm text-slate-700 font-semibold">
+                        <li><b class="text-sky-700">Go straight ahead:</b> Jalan lurus ke depan</li>
+                        <li><b class="text-sky-700">Turn left:</b> Belok kiri</li>
+                        <li><b class="text-sky-700">Turn right:</b> Belok kanan</li>
+                        <li><b class="text-sky-700">Turn around:</b> Putar balik</li>
+                        <li><b class="text-sky-700">Go past:</b> Melewati</li>
+                        <li><b class="text-sky-700">Cross the street:</b> Menyeberang jalan</li>
+                        <li><b class="text-sky-700">At the corner of:</b> Di pojok/simpang jalan</li>
+                    </ul>
+                </div>
+
+                <div class="bg-amber-50 p-4 rounded-2xl border border-amber-200">
+                    <h3 class="font-title font-bold text-amber-800 text-base mb-2"><i class="fa-solid fa-map-location-dot mr-1.5"></i>Prepositions of Place (Kata Depan)</h3>
+                    <ul class="space-y-2 text-xs sm:text-sm text-slate-700 font-semibold">
+                        <li><b class="text-amber-700">Next to / Beside:</b> Di sebelah / Di samping</li>
+                        <li><b class="text-amber-700">Opposite / Across from:</b> Di seberang</li>
+                        <li><b class="text-amber-700">Between:</b> Di antara (dua tempat)</li>
+                        <li><b class="text-amber-700">In front of:</b> Di depan</li>
+                        <li><b class="text-amber-700">Behind:</b> Di belakang</li>
+                        <li><b class="text-amber-700">On the left / On the right:</b> Di sisi kiri / kanan</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="mt-4 bg-emerald-50 p-4 rounded-2xl border border-emerald-200">
+                <h3 class="font-title font-bold text-emerald-800 text-base mb-2"><i class="fa-solid fa-city mr-1.5"></i>Places Around Us in This Town</h3>
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs font-bold text-slate-700">
+                    <div class="bg-white p-2 rounded-xl border border-emerald-100">🏫 <b>School:</b> Sekolah</div>
+                    <div class="bg-white p-2 rounded-xl border border-emerald-100">🏥 <b>Hospital:</b> Rumah Sakit</div>
+                    <div class="bg-white p-2 rounded-xl border border-emerald-100">🏦 <b>Bank:</b> Bank</div>
+                    <div class="bg-white p-2 rounded-xl border border-emerald-100">🥐 <b>Bakery:</b> Toko Roti</div>
+                    <div class="bg-white p-2 rounded-xl border border-emerald-100">🚓 <b>Police Station:</b> Kantor Polisi</div>
+                    <div class="bg-white p-2 rounded-xl border border-emerald-100">🌳 <b>City Park:</b> Taman Kota</div>
+                    <div class="bg-white p-2 rounded-xl border border-emerald-100">📚 <b>Library:</b> Perpustakaan</div>
+                    <div class="bg-white p-2 rounded-xl border border-emerald-100">🛒 <b>Supermarket:</b> Swalayan</div>
+                    <div class="bg-white p-2 rounded-xl border border-emerald-100">📮 <b>Post Office:</b> Kantor Pos</div>
+                </div>
+            </div>
+
+            <button onclick="toggleVocabularyModal()" class="btn-3d mt-5 w-full bg-sky-500 text-white font-title font-bold py-3 rounded-2xl shadow-[0_4px_0_0_#0369a1]">
+                Got It! Back to Game
+            </button>
+        </div>
+    </div>
+
+    <script>
+        /**************************************************************
+         * 1. TOWN MAP & PLACES DATA CONFIGURATION
+         * Grid Coordinates: 7x7 Grid from -3 to +3 (Each tile = 10 units)
+         * Roads: X = -2, 0, 2 OR Z = -2, 0, 2
+         * Buildings sit at odd coordinates: (-3, -1, 1, 3)
+         **************************************************************/
+        const TILE_SIZE = 10;
+        const GRID_MIN = -3;
+        const GRID_MAX = 3;
+
+        // Directions: 0 = North (-Z), 1 = East (+X), 2 = South (+Z), 3 = West (-X)
+        const DIR_VECTORS = [
+            { dx: 0, dz: -1, angle: Math.PI, name: "North (Utara)" },
+            { dx: 1, dz: 0,  angle: Math.PI / 2, name: "East (Timur)" },
+            { dx: 0, dz: 1,  angle: 0, name: "South (Selatan)" },
+            { dx: -1, dz: 0, angle: -Math.PI / 2, name: "West (Barat)" }
+        ];
+
+        // Places around us placed on building plots
+        // stopX, stopZ is the road tile directly in front of the building entrance
+        const PLACES = [
+            {
+                id: 'school',
+                name: 'School',
+                indo: 'Sekolah',
+                emoji: '🏫',
+                gx: -1, gz: -1,
+                stopX: -1, stopZ: 0,
+                color: 0xffb703,
+                roofColor: 0xfb8500,
+                height: 6.5,
+                clue: "Students study and learn English here. It is between the Central Road and North Street.",
+                prepositionSentence: "The <b>School</b> is <b>opposite</b> the Bakery and <b>next to</b> the Hospital."
+            },
+            {
+                id: 'hospital',
+                name: 'Hospital',
+                indo: 'Rumah Sakit',
+                emoji: '🏥',
+                gx: 1, gz: -1,
+                stopX: 1, stopZ: 0,
+                color: 0xffffff,
+                roofColor: 0xef4444,
+                height: 8.0,
+                clue: "Doctors and nurses help sick people here. Look for the tall white building with a red cross!",
+                prepositionSentence: "The <b>Hospital</b> is <b>beside</b> the School and <b>across from</b> the City Park."
+            },
+            {
+                id: 'bakery',
+                name: 'Bakery',
+                indo: 'Toko Roti',
+                emoji: '🥐',
+                gx: -1, gz: 1,
+                stopX: -1, stopZ: 0,
+                color: 0xf4a261,
+                roofColor: 0xe76f51,
+                height: 5.5,
+                clue: "You can smell delicious fresh bread and sweet cakes here!",
+                prepositionSentence: "The <b>Bakery</b> is <b>opposite</b> the School and <b>next to</b> the City Park."
+            },
+            {
+                id: 'park',
+                name: 'City Park',
+                indo: 'Taman Kota',
+                emoji: '🌳',
+                gx: 1, gz: 1,
+                stopX: 1, stopZ: 0,
+                color: 0x52b788,
+                roofColor: 0x2d6a4f,
+                height: 2.0,
+                isPark: true,
+                clue: "A green place with trees, flowers, and a water fountain where children play.",
+                prepositionSentence: "The <b>City Park</b> is <b>across from</b> the Hospital and <b>beside</b> the Bakery."
+            },
+            {
+                id: 'police',
+                name: 'Police Station',
+                indo: 'Kantor Polisi',
+                emoji: '🚓',
+                gx: -3, gz: -1,
+                stopX: -2, stopZ: -1,
+                color: 0x3b82f6,
+                roofColor: 0x1d4ed8,
+                height: 7.0,
+                clue: "Police officers work here to keep our town safe. It is on the west side of town.",
+                prepositionSentence: "The <b>Police Station</b> is <b>on the left</b> side of West Avenue, <b>across from</b> the School."
+            },
+            {
+                id: 'bank',
+                name: 'Bank',
+                indo: 'Bank',
+                emoji: '🏦',
+                gx: 3, gz: -1,
+                stopX: 2, stopZ: -1,
+                color: 0x10b981,
+                roofColor: 0x047857,
+                height: 8.5,
+                clue: "People save and withdraw money at this tall green building on the east side.",
+                prepositionSentence: "The <b>Bank</b> is <b>opposite</b> the Hospital on East Avenue."
+            },
+            {
+                id: 'supermarket',
+                name: 'Supermarket',
+                indo: 'Swalayan',
+                emoji: '🛒',
+                gx: -3, gz: 1,
+                stopX: -2, stopZ: 1,
+                color: 0xec4899,
+                roofColor: 0xbe185d,
+                height: 6.0,
+                clue: "Mother wants to buy fruits, milk, and vegetables for dinner!",
+                prepositionSentence: "The <b>Supermarket</b> is <b>next to</b> West Avenue and <b>across from</b> the Bakery."
+            },
+            {
+                id: 'library',
+                name: 'Library',
+                indo: 'Perpustakaan',
+                emoji: '📚',
+                gx: 3, gz: 1,
+                stopX: 2, stopZ: 1,
+                color: 0x8b5cf6,
+                roofColor: 0x5b21b6,
+                height: 6.5,
+                clue: "A quiet place where you can borrow and read many storybooks.",
+                prepositionSentence: "The <b>Library</b> is <b>opposite</b> the City Park on the east side of town."
+            },
+            {
+                id: 'postoffice',
+                name: 'Post Office',
+                indo: 'Kantor Pos',
+                emoji: '📮',
+                gx: -1, gz: -3,
+                stopX: -1, stopZ: -2,
+                color: 0xf97316,
+                roofColor: 0xc2410c,
+                height: 6.0,
+                clue: "You want to send a letter and a parcel to your friend in London!",
+                prepositionSentence: "The <b>Post Office</b> is on North Street, <b>opposite</b> the School."
+            },
+            {
+                id: 'museum',
+                name: 'Museum',
+                indo: 'Museum',
+                emoji: '🏛️',
+                gx: 1, gz: -3,
+                stopX: 1, stopZ: -2,
+                color: 0xeab308,
+                roofColor: 0xa16207,
+                height: 7.0,
+                clue: "You can see historical statues and ancient artifacts inside this classic building.",
+                prepositionSentence: "The <b>Museum</b> is <b>next to</b> the Post Office on North Street."
+            }
+        ];
+
+        // Sequence of Missions
+        const MISSIONS = ['hospital', 'bakery', 'police', 'park', 'bank', 'supermarket', 'postoffice', 'library', 'school', 'museum'];
+
+        /**************************************************************
+         * 2. GAME STATE & SOUND SYNTHESIS (Web Audio API)
+         **************************************************************/
+        let studentProfile = {
+            name: 'Siswa Hebat',
+            className: 'Kelas VI'
+        };
+        let completedMissionsCount = 0;
+        let currentLevelIndex = 0;
+        let score = 0;
+        let stepsCount = 0;
+        let isAnimating = false;
+        let cameraMode = 'FOLLOW'; // 'FOLLOW' or 'TOP'
+
+        // Player Grid State (Starts at Center Intersection 0,0 facing North)
+        const playerState = {
+            gx: 0,
+            gz: 0,
+            dir: 0 // 0: North, 1: East, 2: South, 3: West
+        };
+
+        // Web Audio Synth for cheerful sound effects without external files
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playSound(type) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const now = audioCtx.currentTime;
+
+            if (type === 'step') {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(320, now);
+                osc.frequency.exponentialRampToValueAtTime(520, now + 0.12);
+                gain.gain.setValueAtTime(0.18, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.14);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(now);
+                osc.stop(now + 0.14);
+            } else if (type === 'turn') {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(400, now);
+                osc.frequency.exponentialRampToValueAtTime(600, now + 0.15);
+                gain.gain.setValueAtTime(0.15, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.16);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(now);
+                osc.stop(now + 0.16);
+            } else if (type === 'blocked') {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(160, now);
+                osc.frequency.linearRampToValueAtTime(110, now + 0.25);
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.28);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(now);
+                osc.stop(now + 0.28);
+            } else if (type === 'win') {
+                const notes = [523.25, 659.25, 783.99, 1046.50];
+                notes.forEach((freq, i) => {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(freq, now + i * 0.1);
+                    gain.gain.setValueAtTime(0.22, now + i * 0.1);
+                    gain.gain.exponentialRampToValueAtTime(0.008, now + i * 0.1 + 0.35);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(now + i * 0.1);
+                    osc.stop(now + i * 0.1 + 0.36);
+                });
+            }
+        }
+
+        // Speech Synthesis for English Pronunciation
+        function speakEnglish(text) {
+            if (!('speechSynthesis' in window)) return;
+            window.speechSynthesis.cancel();
+            const utter = new SpeechSynthesisUtterance(text);
+            utter.lang = 'en-US';
+            utter.rate = 0.95;
+            utter.pitch = 1.05;
+            window.speechSynthesis.speak(utter);
+        }
+
+        function speakMission() {
+            const target = getCurrentTargetPlace();
+            speakEnglish(`Excuse me! Can you help me go to the ${target.name}? ${target.clue}`);
+        }
+
+        /**************************************************************
+         * 3. THREE.JS SCENE, LIGHTING, TOWN & ARTICULATED 3D CHARACTER
+         **************************************************************/
+        let scene, camera, renderer;
+        let characterGroup, leftLegPivot, rightLegPivot, leftArmPivot, rightArmPivot, headGroup;
+        let targetBeaconGroup;
+        let clouds = [];
+        let buildingLabelElements = [];
+
+        // Camera Orbit Drag State
+        let isDraggingCamera = false;
+        let prevMouse = { x: 0, y: 0 };
+        let cameraOrbitOffset = 0; // User manual horizontal rotation offset
+        let cameraPitchOffset = 0.45;
+
+        function isRoadTile(gx, gz) {
+            if (gx < GRID_MIN || gx > GRID_MAX || gz < GRID_MIN || gz > GRID_MAX) return false;
+            return (gx % 2 === 0) || (gz % 2 === 0);
+        }
+
+        function initThreeJS() {
+            const container = document.getElementById('canvas-container');
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x7dd3fc);
+            scene.fog = new THREE.FogExp2(0x7dd3fc, 0.0085);
+
+            camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 300);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            container.appendChild(renderer.domElement);
+
+            // Lights
+            const hemiLight = new THREE.HemisphereLight(0xffffff, 0x4ade80, 0.75);
+            hemiLight.position.set(0, 50, 0);
+            scene.add(hemiLight);
+
+            const dirLight = new THREE.DirectionalLight(0xfffbeb, 0.95);
+            dirLight.position.set(35, 55, 30);
+            dirLight.castShadow = true;
+            dirLight.shadow.mapSize.width = 2048;
+            dirLight.shadow.mapSize.height = 2048;
+            dirLight.shadow.camera.near = 10;
+            dirLight.shadow.camera.far = 140;
+            const d = 48;
+            dirLight.shadow.camera.left = -d;
+            dirLight.shadow.camera.right = d;
+            dirLight.shadow.camera.top = d;
+            dirLight.shadow.camera.bottom = -d;
+            scene.add(dirLight);
+
+            buildWorldEnvironment();
+            buildArticulatedCharacter();
+            buildTargetBeacon();
+            setupInteractionListeners();
+
+            updateMissionUI();
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function buildWorldEnvironment() {
+            // Base grass island
+            const islandGeo = new THREE.BoxGeometry(110, 4, 110);
+            const islandMat = new THREE.MeshLambertMaterial({ color: 0x4ade80 });
+            const island = new THREE.Mesh(islandGeo, islandMat);
+            island.position.y = -2.1;
+            island.receiveShadow = true;
+            scene.add(island);
+
+            // Build 7x7 Grid of Roads & Sidewalks
+            for (let gx = GRID_MIN; gx <= GRID_MAX; gx++) {
+                for (let gz = GRID_MIN; gz <= GRID_MAX; gz++) {
+                    const wx = gx * TILE_SIZE;
+                    const wz = gz * TILE_SIZE;
+
+                    if (isRoadTile(gx, gz)) {
+                        // Asphalt tile
+                        const roadGeo = new THREE.BoxGeometry(TILE_SIZE, 0.2, TILE_SIZE);
+                        const roadMat = new THREE.MeshLambertMaterial({ color: 0x334155 });
+                        const road = new THREE.Mesh(roadGeo, roadMat);
+                        road.position.set(wx, -0.05, wz);
+                        road.receiveShadow = true;
+                        scene.add(road);
+
+                        // Sidewalk Curbs along edges
+                        const isIntersection = (gx % 2 === 0) && (gz % 2 === 0);
+                        if (isIntersection) {
+                            // Crosswalk stripes on all 4 sides of intersection
+                            const stripeMat = new THREE.MeshBasicMaterial({ color: 0xf8fafc });
+                            for (let s = -3; s <= 3; s += 2) {
+                                const stripeN = new THREE.Mesh(new THREE.PlaneGeometry(0.85, 2.0), stripeMat);
+                                stripeN.rotation.x = -Math.PI / 2;
+                                stripeN.position.set(wx + s * 0.8, 0.07, wz - 4.0);
+                                scene.add(stripeN);
+
+                                const stripeW = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 0.85), stripeMat);
+                                stripeW.rotation.x = -Math.PI / 2;
+                                stripeW.position.set(wx - 4.0, 0.07, wz + s * 0.8);
+                                scene.add(stripeW);
+                            }
+
+                            // Traffic Light Post at intersection corner
+                            const tlPole = new THREE.Mesh(
+                                new THREE.CylinderGeometry(0.12, 0.15, 4.2, 8),
+                                new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.5 })
+                            );
+                            tlPole.position.set(wx - 4.2, 2.1, wz - 4.2);
+                            tlPole.castShadow = true;
+                            scene.add(tlPole);
+
+                            const tlBox = new THREE.Mesh(
+                                new THREE.BoxGeometry(0.5, 1.2, 0.5),
+                                new THREE.MeshStandardMaterial({ color: 0x1e293b })
+                            );
+                            tlBox.position.set(wx - 4.2, 4.0, wz - 4.2);
+                            scene.add(tlBox);
+
+                            // Red, Yellow, Green bulbs
+                            const colors = [0xef4444, 0xfacc15, 0x22c55e];
+                            colors.forEach((col, idx) => {
+                                const bulb = new THREE.Mesh(
+                                    new THREE.SphereGeometry(0.14, 8, 8),
+                                    new THREE.MeshBasicMaterial({ color: col })
+                                );
+                                bulb.position.set(wx - 4.2, 4.35 - idx * 0.35, wz - 3.92);
+                                scene.add(bulb);
+                            });
+                        } else {
+                            // Dashed road center line
+                            const dashMat = new THREE.MeshBasicMaterial({ color: 0xfacc15 });
+                            const dashGeo = (gx % 2 === 0)
+                                ? new THREE.PlaneGeometry(0.35, 3.2)
+                                : new THREE.PlaneGeometry(3.2, 0.35);
+                            const dash = new THREE.Mesh(dashGeo, dashMat);
+                            dash.rotation.x = -Math.PI / 2;
+                            dash.position.set(wx, 0.07, wz);
+                            scene.add(dash);
+                        }
+                    } else {
+                        // Raised Sidewalk Plot for Buildings
+                        const plotGeo = new THREE.BoxGeometry(TILE_SIZE - 0.4, 0.45, TILE_SIZE - 0.4);
+                        const plotMat = new THREE.MeshLambertMaterial({ color: 0xe2e8f0 });
+                        const plot = new THREE.Mesh(plotGeo, plotMat);
+                        plot.position.set(wx, 0.15, wz);
+                        plot.receiveShadow = true;
+                        scene.add(plot);
+                    }
+                }
+            }
+
+            // Build all Places Around Us
+            const labelsContainer = document.getElementById('labels-container');
+            PLACES.forEach(place => {
+                const wx = place.gx * TILE_SIZE;
+                const wz = place.gz * TILE_SIZE;
+
+                const bGroup = new THREE.Group();
+                bGroup.position.set(wx, 0.38, wz);
+
+                if (place.isPark) {
+                    // Green lawn
+                    const lawn = new THREE.Mesh(
+                        new THREE.BoxGeometry(8.6, 0.2, 8.6),
+                        new THREE.MeshLambertMaterial({ color: 0x22c55e })
+                    );
+                    bGroup.add(lawn);
+
+                    // Fountain in center
+                    const fountainBase = new THREE.Mesh(
+                        new THREE.CylinderGeometry(1.8, 2.0, 0.6, 16),
+                        new THREE.MeshLambertMaterial({ color: 0x94a3b8 })
+                    );
+                    fountainBase.position.y = 0.4;
+                    bGroup.add(fountainBase);
+
+                    const water = new THREE.Mesh(
+                        new THREE.CylinderGeometry(1.5, 1.5, 0.65, 16),
+                        new THREE.MeshLambertMaterial({ color: 0x38bdf8 })
+                    );
+                    water.position.y = 0.42;
+                    bGroup.add(water);
+
+                    // Park trees
+                    [[-2.8, -2.8], [2.8, -2.8], [-2.8, 2.8], [2.8, 2.8]].forEach(([tx, tz]) => {
+                        const tree = createStylizedTree();
+                        tree.position.set(tx, 0, tz);
+                        bGroup.add(tree);
+                    });
+                } else {
+                    // Main Building Body
+                    const bodyW = 7.4;
+                    const bodyD = 7.4;
+                    const bodyH = place.height;
+
+                    const bodyGeo = new THREE.BoxGeometry(bodyW, bodyH, bodyD);
+                    const bodyMat = new THREE.MeshStandardMaterial({
+                        color: place.color,
+                        roughness: 0.55
+                    });
+                    const bodyMesh = new THREE.Mesh(bodyGeo, bodyMat);
+                    bodyMesh.position.y = bodyH / 2;
+                    bodyMesh.castShadow = true;
+                    bodyMesh.receiveShadow = true;
+                    bGroup.add(bodyMesh);
+
+                    // Roof
+                    const roofGeo = new THREE.BoxGeometry(bodyW + 0.6, 0.7, bodyD + 0.6);
+                    const roofMat = new THREE.MeshStandardMaterial({ color: place.roofColor, roughness: 0.4 });
+                    const roofMesh = new THREE.Mesh(roofGeo, roofMat);
+                    roofMesh.position.y = bodyH + 0.35;
+                    roofMesh.castShadow = true;
+                    bGroup.add(roofMesh);
+
+                    // Entrance Door facing the stop tile
+                    const doorOffsetX = (place.stopX - place.gx) * (bodyW / 2 + 0.05);
+                    const doorOffsetZ = (place.stopZ - place.gz) * (bodyD / 2 + 0.05);
+                    const isFacingZ = Math.abs(place.stopZ - place.gz) > 0;
+                    const doorGeo = isFacingZ
+                        ? new THREE.BoxGeometry(1.7, 2.3, 0.2)
+                        : new THREE.BoxGeometry(0.2, 2.3, 1.7);
+                    const doorMesh = new THREE.Mesh(
+                        doorGeo,
+                        new THREE.MeshStandardMaterial({ color: 0x451a03, roughness: 0.7 })
+                    );
+                    doorMesh.position.set(doorOffsetX, 1.15, doorOffsetZ);
+                    bGroup.add(doorMesh);
+
+                    // Cute Awning above the entrance door
+                    const awningGeo = isFacingZ
+                        ? new THREE.BoxGeometry(2.6, 0.35, 1.1)
+                        : new THREE.BoxGeometry(1.1, 0.35, 2.6);
+                    const awningMesh = new THREE.Mesh(
+                        awningGeo,
+                        new THREE.MeshStandardMaterial({ color: place.roofColor })
+                    );
+                    awningMesh.position.set(
+                        doorOffsetX * 1.08,
+                        2.5,
+                        doorOffsetZ * 1.08
+                    );
+                    bGroup.add(awningMesh);
+
+                    // Windows on all 4 sides
+                    const winMat = new THREE.MeshBasicMaterial({ color: 0xe0f2fe });
+                    const floors = Math.floor(bodyH / 2.2);
+                    for (let f = 1; f < floors; f++) {
+                        for (let c = -1; c <= 1; c += 2) {
+                            const wy = f * 2.0 + 0.5;
+                            // Front/Back windows
+                            const wFront = new THREE.Mesh(new THREE.BoxGeometry(1.3, 1.1, 7.55), winMat);
+                            wFront.position.set(c * 1.8, wy, 0);
+                            bGroup.add(wFront);
+                            // Left/Right windows
+                            const wSide = new THREE.Mesh(new THREE.BoxGeometry(7.55, 1.1, 1.3), winMat);
+                            wSide.position.set(0, wy, c * 1.8);
+                            bGroup.add(wSide);
+                        }
+                    }
+
+                    // Special Red Cross for Hospital
+                    if (place.id === 'hospital') {
+                        const crossMat = new THREE.MeshBasicMaterial({ color: 0xef4444 });
+                        const vBar = new THREE.Mesh(new THREE.BoxGeometry(0.7, 2.1, 7.65), crossMat);
+                        const hBar = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.7, 7.65), crossMat);
+                        vBar.position.set(0, bodyH - 1.5, 0);
+                        hBar.position.set(0, bodyH - 1.5, 0);
+                        bGroup.add(vBar, hBar);
+                    }
+                }
+
+                // Entrance Mat on the Stop Tile side
+                const dirToRoadX = (place.stopX - place.gx) * 4.1;
+                const dirToRoadZ = (place.stopZ - place.gz) * 4.1;
+                const matMesh = new THREE.Mesh(
+                    new THREE.BoxGeometry(2.2, 0.15, 2.2),
+                    new THREE.MeshLambertMaterial({ color: place.roofColor })
+                );
+                matMesh.position.set(dirToRoadX, 0.08, dirToRoadZ);
+                bGroup.add(matMesh);
+
+                scene.add(bGroup);
+
+                // Create Floating HTML Label for the building
+                const labelDiv = document.createElement('div');
+                labelDiv.className = 'building-label px-2.5 py-1 rounded-xl shadow-md border-2 border-white bg-slate-900/80 text-white text-center backdrop-blur-xs';
+                labelDiv.innerHTML = `
+                    <div class="text-xs sm:text-sm font-title font-bold flex items-center gap-1 justify-center">
+                        <span>${place.emoji}</span>
+                        <span>${place.name}</span>
+                    </div>
+                    <div class="text-[10px] text-amber-300 font-bold leading-none">${place.indo}</div>
+                `;
+                labelsContainer.appendChild(labelDiv);
+
+                buildingLabelElements.push({
+                    id: place.id,
+                    element: labelDiv,
+                    worldPos: new THREE.Vector3(wx, place.height + 2.2, wz)
+                });
+            });
+
+            // Decorative Trees & Clouds around outer border
+            for (let i = -40; i <= 40; i += 10) {
+                const t1 = createStylizedTree(); t1.position.set(i, 0, -42); scene.add(t1);
+                const t2 = createStylizedTree(); t2.position.set(i, 0, 42); scene.add(t2);
+                const t3 = createStylizedTree(); t3.position.set(-42, 0, i); scene.add(t3);
+                const t4 = createStylizedTree(); t4.position.set(42, 0, i); scene.add(t4);
+            }
+
+            // Fluffy 3D Clouds
+            for (let c = 0; c < 8; c++) {
+                const cloud = createCloud();
+                cloud.position.set(
+                    (Math.random() - 0.5) * 110,
+                    22 + Math.random() * 8,
+                    (Math.random() - 0.5) * 90
+                );
+                scene.add(cloud);
+                clouds.push(cloud);
+            }
+        }
+
+        function createStylizedTree() {
+            const tree = new THREE.Group();
+            const trunk = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.35, 0.5, 2.0, 8),
+                new THREE.MeshLambertMaterial({ color: 0x78350f })
+            );
+            trunk.position.y = 1.0;
+            trunk.castShadow = true;
+            tree.add(trunk);
+
+            const leavesMat = new THREE.MeshLambertMaterial({ color: 0x16a34a });
+            const crown1 = new THREE.Mesh(new THREE.SphereGeometry(1.4, 12, 12), leavesMat);
+            crown1.position.y = 2.6;
+            crown1.castShadow = true;
+            const crown2 = new THREE.Mesh(new THREE.SphereGeometry(1.0, 12, 12), leavesMat);
+            crown2.position.y = 3.8;
+            tree.add(crown1, crown2);
+            return tree;
+        }
+
+        function createCloud() {
+            const group = new THREE.Group();
+            const mat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+            const p1 = new THREE.Mesh(new THREE.SphereGeometry(2.2, 10, 10), mat);
+            const p2 = new THREE.Mesh(new THREE.SphereGeometry(1.7, 10, 10), mat);
+            p2.position.set(1.8, -0.3, 0.4);
+            const p3 = new THREE.Mesh(new THREE.SphereGeometry(1.6, 10, 10), mat);
+            p3.position.set(-1.8, -0.4, -0.3);
+            group.add(p1, p2, p3);
+            return group;
+        }
+
+        /**************************************************************
+         * 4. REALISTIC ARTICULATED 3D CHARACTER ("LEO")
+         **************************************************************/
+        function buildArticulatedCharacter() {
+            characterGroup = new THREE.Group();
+
+            const skinMat = new THREE.MeshStandardMaterial({ color: 0xffedd5, roughness: 0.45 });
+            const shirtMat = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.5 });
+            const pantsMat = new THREE.MeshStandardMaterial({ color: 0x1d4ed8, roughness: 0.6 });
+            const shoeMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.5 });
+            const hairMat = new THREE.MeshStandardMaterial({ color: 0x451a03, roughness: 0.7 });
+            const bagMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.4 });
+
+            // Torso / Jacket
+            const torso = new THREE.Mesh(new THREE.BoxGeometry(1.15, 1.35, 0.68), shirtMat);
+            torso.position.y = 2.05;
+            torso.castShadow = true;
+            characterGroup.add(torso);
+
+            // Collar / White Undershirt detail
+            const collar = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.28, 0.3, 0.2, 12),
+                new THREE.MeshBasicMaterial({ color: 0xffffff })
+            );
+            collar.position.set(0, 2.72, 0.05);
+            characterGroup.add(collar);
+
+            // School Backpack (-Z is character's back)
+            const backpack = new THREE.Mesh(new THREE.BoxGeometry(0.92, 1.05, 0.48), bagMat);
+            backpack.position.set(0, 2.1, -0.52);
+            backpack.castShadow = true;
+            characterGroup.add(backpack);
+
+            const bagPocket = new THREE.Mesh(
+                new THREE.BoxGeometry(0.7, 0.45, 0.2),
+                new THREE.MeshStandardMaterial({ color: 0xd97706 })
+            );
+            bagPocket.position.set(0, 1.9, -0.78);
+            characterGroup.add(bagPocket);
+
+            // Head Group
+            headGroup = new THREE.Group();
+            headGroup.position.set(0, 3.25, 0);
+
+            const headMesh = new THREE.Mesh(new THREE.SphereGeometry(0.58, 24, 24), skinMat);
+            headMesh.castShadow = true;
+            headGroup.add(headMesh);
+
+            // Ears
+            const leftEar = new THREE.Mesh(new THREE.SphereGeometry(0.14, 12, 12), skinMat);
+            leftEar.position.set(-0.56, 0.0, 0.05);
+            const rightEar = new THREE.Mesh(new THREE.SphereGeometry(0.14, 12, 12), skinMat);
+            rightEar.position.set(0.56, 0.0, 0.05);
+            headGroup.add(leftEar, rightEar);
+
+            // Hair & Cap
+            const hair = new THREE.Mesh(new THREE.SphereGeometry(0.61, 18, 18, 0, Math.PI * 2, 0, Math.PI * 0.58), hairMat);
+            hair.rotation.x = -0.2;
+            headGroup.add(hair);
+
+            const capCrown = new THREE.Mesh(
+                new THREE.SphereGeometry(0.62, 18, 18, 0, Math.PI * 2, 0, Math.PI * 0.45),
+                new THREE.MeshStandardMaterial({ color: 0x2563eb, roughness: 0.4 })
+            );
+            capCrown.position.y = 0.05;
+            headGroup.add(capCrown);
+
+            const capVisor = new THREE.Mesh(
+                new THREE.BoxGeometry(0.82, 0.1, 0.52),
+                new THREE.MeshStandardMaterial({ color: 0x1d4ed8 })
+            );
+            capVisor.position.set(0, 0.22, 0.46);
+            headGroup.add(capVisor);
+
+            // Eyes with white sclera, dark pupils & eyebrows (+Z is character's forward local axis)
+            const scleraMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+            const eyeMat = new THREE.MeshBasicMaterial({ color: 0x111827 });
+
+            const leftSclera = new THREE.Mesh(new THREE.SphereGeometry(0.11, 12, 12), scleraMat);
+            leftSclera.position.set(-0.2, 0.06, 0.49);
+            const leftEye = new THREE.Mesh(new THREE.SphereGeometry(0.065, 10, 10), eyeMat);
+            leftEye.position.set(-0.2, 0.06, 0.55);
+
+            const rightSclera = new THREE.Mesh(new THREE.SphereGeometry(0.11, 12, 12), scleraMat);
+            rightSclera.position.set(0.2, 0.06, 0.49);
+            const rightEye = new THREE.Mesh(new THREE.SphereGeometry(0.065, 10, 10), eyeMat);
+            rightEye.position.set(0.2, 0.06, 0.55);
+
+            // Cute Nose & Smile
+            const nose = new THREE.Mesh(new THREE.SphereGeometry(0.08, 10, 10), skinMat);
+            nose.position.set(0, -0.04, 0.58);
+
+            const smileGeo = new THREE.TorusGeometry(0.13, 0.03, 8, 16, Math.PI);
+            const smileMat = new THREE.MeshBasicMaterial({ color: 0x991b1b });
+            const smile = new THREE.Mesh(smileGeo, smileMat);
+            smile.rotation.x = Math.PI;
+            smile.position.set(0, -0.16, 0.53);
+
+            headGroup.add(leftSclera, leftEye, rightSclera, rightEye, nose, smile);
+
+            characterGroup.add(headGroup);
+
+            // Left & Right Articulated Arms
+            leftArmPivot = new THREE.Group();
+            leftArmPivot.position.set(-0.75, 2.6, 0);
+            const leftArm = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.14, 1.1, 10), shirtMat);
+            leftArm.position.y = -0.45;
+            const leftHand = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 10), skinMat);
+            leftHand.position.y = -1.05;
+            leftArmPivot.add(leftArm, leftHand);
+            characterGroup.add(leftArmPivot);
+
+            rightArmPivot = new THREE.Group();
+            rightArmPivot.position.set(0.75, 2.6, 0);
+            const rightArm = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.14, 1.1, 10), shirtMat);
+            rightArm.position.y = -0.45;
+            const rightHand = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 10), skinMat);
+            rightHand.position.y = -1.05;
+            rightArmPivot.add(rightArm, rightHand);
+            characterGroup.add(rightArmPivot);
+
+            // Left & Right Articulated Legs
+            leftLegPivot = new THREE.Group();
+            leftLegPivot.position.set(-0.3, 1.4, 0);
+            const leftLeg = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.17, 1.2, 10), pantsMat);
+            leftLeg.position.y = -0.6;
+            const leftShoe = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.25, 0.55), shoeMat);
+            leftShoe.position.set(0, -1.25, 0.1);
+            leftLegPivot.add(leftLeg, leftShoe);
+            characterGroup.add(leftLegPivot);
+
+            rightLegPivot = new THREE.Group();
+            rightLegPivot.position.set(0.3, 1.4, 0);
+            const rightLeg = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.17, 1.2, 10), pantsMat);
+            rightLeg.position.y = -0.6;
+            const rightShoe = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.25, 0.55), shoeMat);
+            rightShoe.position.set(0, -1.25, 0.1);
+            rightLegPivot.add(rightLeg, rightShoe);
+            characterGroup.add(rightLegPivot);
+
+            // Ground Direction Arrow Ring under Leo so students clearly see Left/Right/Straight
+            const ringGeo = new THREE.RingGeometry(1.1, 1.45, 24);
+            const ringMat = new THREE.MeshBasicMaterial({ color: 0xfacc15, side: THREE.DoubleSide });
+            const ring = new THREE.Mesh(ringGeo, ringMat);
+            ring.rotation.x = -Math.PI / 2;
+            ring.position.y = 0.12;
+            characterGroup.add(ring);
+
+            // Forward Pointer Cone (+Z in character local space)
+            const coneGeo = new THREE.ConeGeometry(0.55, 1.1, 4);
+            const coneMat = new THREE.MeshBasicMaterial({ color: 0x22c55e });
+            const forwardCone = new THREE.Mesh(coneGeo, coneMat);
+            forwardCone.rotation.x = Math.PI / 2;
+            forwardCone.position.set(0, 0.2, 1.95);
+            characterGroup.add(forwardCone);
+
+            characterGroup.position.set(0, 0, 0);
+            characterGroup.rotation.y = DIR_VECTORS[playerState.dir].angle;
+            scene.add(characterGroup);
+        }
+
+        function buildTargetBeacon() {
+            targetBeaconGroup = new THREE.Group();
+
+            // Glowing ground target ring on the destination stop tile
+            const outerRing = new THREE.Mesh(
+                new THREE.RingGeometry(2.0, 2.7, 32),
+                new THREE.MeshBasicMaterial({ color: 0xfacc15, side: THREE.DoubleSide })
+            );
+            outerRing.rotation.x = -Math.PI / 2;
+            outerRing.position.y = 0.12;
+            targetBeaconGroup.add(outerRing);
+
+            // Floating Bouncing Arrow above the destination stop tile
+            const arrowCone = new THREE.Mesh(
+                new THREE.ConeGeometry(1.2, 2.2, 16),
+                new THREE.MeshLambertMaterial({ color: 0xfacc15, emissive: 0xd97706, emissiveIntensity: 0.4 })
+            );
+            arrowCone.rotation.x = Math.PI;
+            arrowCone.position.y = 4.5;
+            arrowCone.name = 'bouncingArrow';
+            targetBeaconGroup.add(arrowCone);
+
+            scene.add(targetBeaconGroup);
+        }
+
+        /**************************************************************
+         * 5. DIRECTION COMMANDS & SMOOTH ANIMATION SYSTEM
+         **************************************************************/
+        let activeTween = null;
+
+        function handleCommand(cmd) {
+            if (isAnimating) return;
+
+            if (cmd === 'TURN_LEFT') {
+                playSound('turn');
+                const startAngle = characterGroup.rotation.y;
+                playerState.dir = (playerState.dir + 3) % 4;
+                const endAngle = startAngle + Math.PI / 2;
+                stepsCount++;
+                showToast('"Turn left!"', 'Belok ke kiri!');
+                speakEnglish('Turn left');
+                startRotationTween(startAngle, endAngle, 380);
+            } else if (cmd === 'TURN_RIGHT') {
+                playSound('turn');
+                const startAngle = characterGroup.rotation.y;
+                playerState.dir = (playerState.dir + 1) % 4;
+                const endAngle = startAngle - Math.PI / 2;
+                stepsCount++;
+                showToast('"Turn right!"', 'Belok ke kanan!');
+                speakEnglish('Turn right');
+                startRotationTween(startAngle, endAngle, 380);
+            } else if (cmd === 'TURN_AROUND') {
+                playSound('turn');
+                const startAngle = characterGroup.rotation.y;
+                playerState.dir = (playerState.dir + 2) % 4;
+                const endAngle = startAngle + Math.PI;
+                stepsCount++;
+                showToast('"Turn around!"', 'Putar balik!');
+                speakEnglish('Turn around');
+                startRotationTween(startAngle, endAngle, 500);
+            } else if (cmd === 'GO_STRAIGHT') {
+                const vec = DIR_VECTORS[playerState.dir];
+                const nextGX = playerState.gx + vec.dx;
+                const nextGZ = playerState.gz + vec.dz;
+
+                if (!isRoadTile(nextGX, nextGZ)) {
+                    playSound('blocked');
+                    showToast('"Oops! Cannot go straight there. Turn left or right!"', 'Mentok gedung/batas jalan! Silakan belok kiri atau kanan.');
+                    speakEnglish('Oops! The road is blocked. Please turn left or turn right.');
+                    return;
+                }
+
+                playSound('step');
+                const startPos = characterGroup.position.clone();
+                const endPos = new THREE.Vector3(nextGX * TILE_SIZE, 0, nextGZ * TILE_SIZE);
+                playerState.gx = nextGX;
+                playerState.gz = nextGZ;
+                stepsCount++;
+
+                showToast('"Go straight ahead!"', 'Jalan lurus ke depan!');
+                speakEnglish('Go straight ahead');
+                startWalkTween(startPos, endPos, 620);
+            } else if (cmd === 'CROSS_STREET') {
+                const vec = DIR_VECTORS[playerState.dir];
+                const midGX = playerState.gx + vec.dx;
+                const midGZ = playerState.gz + vec.dz;
+                const nextGX = playerState.gx + vec.dx * 2;
+                const nextGZ = playerState.gz + vec.dz * 2;
+
+                if (isRoadTile(midGX, midGZ) && isRoadTile(nextGX, nextGZ)) {
+                    playSound('step');
+                    const startPos = characterGroup.position.clone();
+                    const endPos = new THREE.Vector3(nextGX * TILE_SIZE, 0, nextGZ * TILE_SIZE);
+                    playerState.gx = nextGX;
+                    playerState.gz = nextGZ;
+                    stepsCount++;
+
+                    showToast('"Cross the street and go past the corner!"', 'Menyeberang jalan lurus 2 blok!');
+                    speakEnglish('Cross the street and go straight');
+                    startWalkTween(startPos, endPos, 950);
+                } else if (isRoadTile(midGX, midGZ)) {
+                    // Fallback to 1 block if 2 blocks hits the edge
+                    handleCommand('GO_STRAIGHT');
+                    return;
+                } else {
+                    playSound('blocked');
+                    showToast('"Cannot cross here! Turn towards an open street."', 'Tidak bisa menyeberang ke arah gedung! Belok dulu.');
+                    speakEnglish('Cannot cross the street here. Please turn left or right.');
+                    return;
+                }
+            }
+
+            updateHUDStats();
+        }
+
+        function startRotationTween(startAngle, endAngle, duration) {
+            isAnimating = true;
+            setButtonsDisabled(true);
+            activeTween = {
+                type: 'ROTATE',
+                startTime: performance.now(),
+                duration,
+                startAngle,
+                endAngle
+            };
+        }
+
+        function startWalkTween(startPos, endPos, duration) {
+            isAnimating = true;
+            setButtonsDisabled(true);
+            activeTween = {
+                type: 'WALK',
+                startTime: performance.now(),
+                duration,
+                startPos,
+                endPos
+            };
+        }
+
+        function setButtonsDisabled(disabled) {
+            ['btn-left', 'btn-straight', 'btn-cross', 'btn-right', 'btn-around'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.disabled = disabled;
+            });
+        }
+
+        /**************************************************************
+         * 6. MISSION LOGIC, ROUTE HINTS & UI FEEDBACK
+         **************************************************************/
+        function getCurrentTargetPlace() {
+            const targetId = MISSIONS[currentLevelIndex % MISSIONS.length];
+            return PLACES.find(p => p.id === targetId);
+        }
+
+        function updateMissionUI() {
+            const target = getCurrentTargetPlace();
+            document.getElementById('level-display').textContent = `${currentLevelIndex + 1}/${MISSIONS.length}`;
+            document.getElementById('mission-icon').textContent = target.emoji;
+            document.getElementById('mission-place-title').textContent = `Go to the ${target.name}! (${target.indo})`;
+            document.getElementById('mission-clue').textContent = `"${target.clue}"`;
+
+            // Position 3D Target Beacon on the road stop tile in front of the target building
+            targetBeaconGroup.position.set(target.stopX * TILE_SIZE, 0, target.stopZ * TILE_SIZE);
+
+            // Highlight target building's floating label (compact so it doesn't clutter mobile screen)
+            buildingLabelElements.forEach(item => {
+                if (item.id === target.id) {
+                    item.element.className = 'building-label target-badge px-2.5 py-1 rounded-xl shadow-xl border-2 border-amber-300 bg-amber-500 text-slate-950 text-center font-extrabold';
+                } else {
+                    item.element.className = 'building-label px-2 py-0.5 rounded-lg shadow-md border border-white/80 bg-slate-900/75 text-white text-center opacity-85';
+                }
+            });
+
+            updateRouteHint();
+            updateHUDStats();
+            renderMiniMap();
+        }
+
+        function updateHUDStats() {
+            document.getElementById('score-display').textContent = score;
+            const stepsEl = document.getElementById('steps-display');
+            if (stepsEl) stepsEl.textContent = stepsCount;
+            const facingEl = document.getElementById('facing-badge');
+            if (facingEl) facingEl.textContent = DIR_VECTORS[playerState.dir].name;
+            renderMiniMap();
+        }
+
+        function renderMiniMap() {
+            const container = document.getElementById('minimap');
+            if (!container) return;
+            const target = getCurrentTargetPlace();
+            container.innerHTML = '';
+
+            for (let gz = GRID_MIN; gz <= GRID_MAX; gz++) {
+                for (let gx = GRID_MIN; gx <= GRID_MAX; gx++) {
+                    const cell = document.createElement('div');
+                    const road = isRoadTile(gx, gz);
+                    cell.className = `w-full h-full rounded-[3px] flex items-center justify-center text-[9px] ${
+                        road ? 'bg-slate-600' : 'bg-emerald-100'
+                    }`;
+
+                    if (playerState.gx === gx && playerState.gz === gz) {
+                        cell.innerHTML = `<span class="w-2.5 h-2.5 rounded-full bg-sky-400 ring-2 ring-white block"></span>`;
+                    } else if (target.stopX === gx && target.stopZ === gz) {
+                        cell.innerHTML = `<span class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse block"></span>`;
+                    } else {
+                        const placeHere = PLACES.find(p => p.gx === gx && p.gz === gz);
+                        if (placeHere) {
+                            cell.textContent = placeHere.emoji;
+                            if (placeHere.id === target.id) {
+                                cell.classList.add('ring-1', 'ring-amber-500', 'bg-amber-100');
+                            }
+                        }
+                    }
+                    container.appendChild(cell);
+                }
+            }
+        }
+
+        function updateRouteHint() {
+            const target = getCurrentTargetPlace();
+            const dx = target.stopX - playerState.gx;
+            const dz = target.stopZ - playerState.gz;
+
+            const hintEl = document.getElementById('live-route-hint');
+            if (!hintEl) return;
+
+            if (dx === 0 && dz === 0) {
+                hintEl.innerHTML = `<span class="text-emerald-600">You are right in front of the ${target.name}!</span>`;
+                return;
+            }
+
+            // Determine desired cardinal direction towards the target stop tile
+            let desiredDir = playerState.dir;
+            if (Math.abs(dz) >= Math.abs(dx)) {
+                desiredDir = dz < 0 ? 0 : 2; // North (0) or South (2)
+            } else {
+                desiredDir = dx > 0 ? 1 : 3; // East (1) or West (3)
+            }
+
+            const diff = (desiredDir - playerState.dir + 4) % 4;
+            let suggestion = "";
+            if (diff === 0) {
+                suggestion = `Try <b>"Go Straight"</b> or <b>"Cross Street"</b> towards the <b>${target.name}</b>!`;
+            } else if (diff === 1) {
+                suggestion = `Try <b>"Turn Right"</b> (Belok Kanan) towards the <b>${target.name}</b>.`;
+            } else if (diff === 3) {
+                suggestion = `Try <b>"Turn Left"</b> (Belok Kiri) towards the <b>${target.name}</b>.`;
+            } else {
+                suggestion = `Try <b>"Turn Around"</b> (Putar Balik) because the <b>${target.name}</b> is behind Leo!`;
+            }
+
+            hintEl.innerHTML = suggestion;
+        }
+
+        function checkDestinationArrival() {
+            const target = getCurrentTargetPlace();
+            if (playerState.gx === target.stopX && playerState.gz === target.stopZ) {
+                playSound('win');
+                const earned = Math.max(60, 100 - Math.max(0, stepsCount - 4) * 5);
+                score += earned;
+                completedMissionsCount++;
+                updateHUDStats();
+
+                document.getElementById('modal-emoji').textContent = target.emoji;
+                document.getElementById('modal-title').textContent = `Welcome to the ${target.name}!`;
+                document.getElementById('modal-desc').innerHTML = target.prepositionSentence;
+                document.getElementById('modal-points').textContent = `+${earned}`;
+                document.getElementById('modal-steps').textContent = `${stepsCount} Steps`;
+
+                const modal = document.getElementById('success-modal');
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+
+                const cleanSentence = target.prepositionSentence.replace(/<\/?b>/g, '');
+                speakEnglish(`Great job ${studentProfile.name}! You arrived at the ${target.name}. ${cleanSentence}`);
+            }
+        }
+
+        /**************************************************************
+         * 6B. STUDENT REGISTRATION, MODALS & CERTIFICATE GENERATOR
+         **************************************************************/
+        function startGameSession() {
+            const nameInput = document.getElementById('input-student-name').value.trim();
+            const classInput = document.getElementById('input-student-class').value.trim();
+            const errEl = document.getElementById('start-error');
+
+            if (!nameInput || !classInput) {
+                errEl.classList.remove('hidden');
+                playSound('blocked');
+                return;
+            }
+
+            errEl.classList.add('hidden');
+            studentProfile.name = nameInput;
+            studentProfile.className = classInput;
+
+            document.getElementById('hud-student-name').textContent = studentProfile.name;
+            document.getElementById('hud-student-class').textContent = `Kelas: ${studentProfile.className}`;
+
+            const startModal = document.getElementById('start-modal');
+            startModal.classList.add('hidden');
+            startModal.classList.remove('flex');
+
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            speakMission();
+        }
+
+        function toggleHowToPlayModal(show) {
+            const modal = document.getElementById('howto-modal');
+            if (show) {
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+            } else {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }
+        }
+
+        function toggleHintBar() {
+            const el = document.getElementById('hint-popover');
+            el.classList.toggle('hidden');
+        }
+
+        function toggleRadarMap() {
+            const el = document.getElementById('radar-popover');
+            if (el.classList.contains('hidden')) {
+                el.classList.remove('hidden');
+                el.classList.add('flex');
+                renderMiniMap();
+            } else {
+                el.classList.add('hidden');
+                el.classList.remove('flex');
+            }
+        }
+
+        function toggleFullScreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(() => {});
+                document.getElementById('fs-icon').className = 'fa-solid fa-compress';
+            } else {
+                document.exitFullscreen().catch(() => {});
+                document.getElementById('fs-icon').className = 'fa-solid fa-expand';
+            }
+        }
+
+        function openCertificateModal() {
+            // Hide success modal if open
+            const sModal = document.getElementById('success-modal');
+            sModal.classList.add('hidden');
+            sModal.classList.remove('flex');
+
+            drawCertificateCanvas();
+            const cModal = document.getElementById('certificate-modal');
+            cModal.classList.remove('hidden');
+            cModal.classList.add('flex');
+        }
+
+        function closeCertificateModal() {
+            const cModal = document.getElementById('certificate-modal');
+            cModal.classList.add('hidden');
+            cModal.classList.remove('flex');
+        }
+
+        function drawCertificateCanvas() {
+            const canvas = document.getElementById('certificate-canvas');
+            const ctx = canvas.getContext('2d');
+            const W = canvas.width;
+            const H = canvas.height;
+
+            // 1. Background Gradient
+            const bgGrad = ctx.createLinearGradient(0, 0, W, H);
+            bgGrad.addColorStop(0, '#fffbeb');
+            bgGrad.addColorStop(0.5, '#ffffff');
+            bgGrad.addColorStop(1, '#f0f9ff');
+            ctx.fillStyle = bgGrad;
+            ctx.fillRect(0, 0, W, H);
+
+            // 2. Decorative Outer & Inner Borders
+            ctx.strokeStyle = '#0284c7';
+            ctx.lineWidth = 18;
+            ctx.strokeRect(30, 30, W - 60, H - 60);
+
+            ctx.strokeStyle = '#f59e0b';
+            ctx.lineWidth = 6;
+            ctx.strokeRect(52, 52, W - 104, H - 104);
+
+            // Corner Ornaments
+            const corners = [[52, 52], [W - 52, 52], [52, H - 52], [W - 52, H - 52]];
+            ctx.fillStyle = '#f59e0b';
+            corners.forEach(([cx, cy]) => {
+                ctx.beginPath();
+                ctx.arc(cx, cy, 14, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // 3. Header Badge & Title
+            ctx.fillStyle = '#0369a1';
+            ctx.font = 'bold 24px Nunito, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('ENGLISH INTERACTIVE 3D LEARNING PROGRAM', W / 2, 130);
+
+            ctx.fillStyle = '#1e293b';
+            ctx.font = 'bold 54px Fredoka, sans-serif';
+            ctx.fillText('CERTIFICATE OF ACHIEVEMENT', W / 2, 195);
+
+            ctx.fillStyle = '#d97706';
+            ctx.font = 'bold 22px Nunito, sans-serif';
+            ctx.fillText('SERTIFIKAT HASIL BELAJAR BAHASA INGGRIS - TOPIC: PLACES AROUND US & DIRECTIONS', W / 2, 235);
+
+            // Divider Line
+            ctx.strokeStyle = '#cbd5e1';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(W / 2 - 280, 260);
+            ctx.lineTo(W / 2 + 280, 260);
+            ctx.stroke();
+
+            // 4. Student Name & Class
+            ctx.fillStyle = '#475569';
+            ctx.font = '600 24px Nunito, sans-serif';
+            ctx.fillText('Diberikan dengan bangga kepada siswa (Proudly presented to):', W / 2, 310);
+
+            ctx.fillStyle = '#0f172a';
+            ctx.font = 'bold 52px Fredoka, sans-serif';
+            ctx.fillText(studentProfile.name.toUpperCase(), W / 2, 375);
+
+            ctx.fillStyle = '#0284c7';
+            ctx.font = 'bold 30px Nunito, sans-serif';
+            ctx.fillText(`Kelas / Grade: ${studentProfile.className}`, W / 2, 425);
+
+            // 5. Score Box & Grade Calculation
+            // Calculate Final Score (0 - 100 scale or total points)
+            const finalNilai = Math.min(100, Math.round((score / Math.max(1, completedMissionsCount * 100)) * 100)) || 0;
+            let predicate = 'GOOD JOB (BAIK)';
+            if (score >= 400 || finalNilai >= 90) predicate = 'EXCELLENT (SANGAT BAIK - A)';
+            else if (score >= 200 || finalNilai >= 80) predicate = 'VERY GOOD (BAIK SEKALI - B+)';
+
+            // Score Card Background
+            ctx.fillStyle = '#f8fafc';
+            ctx.strokeStyle = '#94a3b8';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.roundRect(200, 465, W - 400, 175, 24);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.fillStyle = '#334155';
+            ctx.font = 'bold 24px Nunito, sans-serif';
+            ctx.fillText(`Misi Diselesaikan (Missions Completed): ${completedMissionsCount} Tempat Umum`, W / 2, 512);
+
+            ctx.fillStyle = '#047857';
+            ctx.font = 'bold 42px Fredoka, sans-serif';
+            ctx.fillText(`TOTAL SKOR: ${score} POIN   |   NILAI AKHIR: ${completedMissionsCount > 0 ? finalNilai : 0}`, W / 2, 568);
+
+            ctx.fillStyle = '#b45309';
+            ctx.font = 'bold 24px Nunito, sans-serif';
+            ctx.fillText(`Predikat Kompetensi: ${predicate}`, W / 2, 615);
+
+            // 6. Footer Date & Signature
+            const todayStr = new Date().toLocaleDateString('id-ID', {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric'
+            });
+
+            ctx.fillStyle = '#475569';
+            ctx.font = 'bold 20px Nunito, sans-serif';
+            ctx.textAlign = 'left';
+            ctx.fillText(`Tanggal (Date): ${todayStr}`, 110, 735);
+            ctx.fillText('Materi: Giving Directions & Prepositions of Place', 110, 765);
+
+            ctx.textAlign = 'right';
+            ctx.fillText('English 3D Adventure Assessment', W - 110, 735);
+            ctx.fillStyle = '#0284c7';
+            ctx.fillText('✔ Terverifikasi Otomatis (Verified Score)', W - 110, 765);
+        }
+
+        function downloadCertificateImage() {
+            drawCertificateCanvas();
+            const canvas = document.getElementById('certificate-canvas');
+            const safeName = studentProfile.name.replace(/[^a-zA-Z0-9]/g, '_');
+            const link = document.createElement('a');
+            link.download = `Sertifikat_Bahasa_Inggris_${safeName}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        }
+
+        function nextMission() {
+            const modal = document.getElementById('success-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+
+            currentLevelIndex = (currentLevelIndex + 1) % MISSIONS.length;
+            stepsCount = 0;
+            updateMissionUI();
+            speakMission();
+        }
+
+        let toastTimer = null;
+        function showToast(enText, idText) {
+            const toast = document.getElementById('speech-toast');
+            document.getElementById('toast-en').textContent = enText;
+            document.getElementById('toast-id').textContent = idText;
+            toast.classList.remove('opacity-0', 'translate-y-4');
+            toast.classList.add('opacity-100', 'translate-y-0');
+
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => {
+                toast.classList.remove('opacity-100', 'translate-y-0');
+                toast.classList.add('opacity-0', 'translate-y-4');
+            }, 2200);
+        }
+
+        function toggleVocabularyModal() {
+            const modal = document.getElementById('vocab-modal');
+            if (modal.classList.contains('hidden')) {
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+            } else {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }
+        }
+
+        function toggleCameraView() {
+            cameraMode = (cameraMode === 'FOLLOW') ? 'TOP' : 'FOLLOW';
+            cameraOrbitOffset = 0;
+            document.getElementById('cam-label').textContent =
+                (cameraMode === 'FOLLOW') ? 'Behind View' : 'Map Bird View';
+        }
+
+        /**************************************************************
+         * 7. INPUT LISTENERS (Mouse Orbit, Touch & Keyboard)
+         **************************************************************/
+        function setupInteractionListeners() {
+            const dom = renderer.domElement;
+
+            // Mouse Controls (Laptop / PC)
+            dom.addEventListener('mousedown', (e) => {
+                isDraggingCamera = true;
+                prevMouse = { x: e.clientX, y: e.clientY };
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (!isDraggingCamera) return;
+                const dx = e.clientX - prevMouse.x;
+                const dy = e.clientY - prevMouse.y;
+                cameraOrbitOffset -= dx * 0.007;
+                cameraPitchOffset = Math.max(0.2, Math.min(1.1, cameraPitchOffset + dy * 0.005));
+                prevMouse = { x: e.clientX, y: e.clientY };
+            });
+
+            window.addEventListener('mouseup', () => {
+                isDraggingCamera = false;
+            });
+
+            // Touch Controls (HP & Interactive Flat Panel / IFP)
+            dom.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 1) {
+                    isDraggingCamera = true;
+                    prevMouse = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+                }
+            }, { passive: true });
+
+            window.addEventListener('touchmove', (e) => {
+                if (!isDraggingCamera || e.touches.length !== 1) return;
+                const dx = e.touches[0].clientX - prevMouse.x;
+                const dy = e.touches[0].clientY - prevMouse.y;
+                cameraOrbitOffset -= dx * 0.007;
+                cameraPitchOffset = Math.max(0.2, Math.min(1.1, cameraPitchOffset + dy * 0.005));
+                prevMouse = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+            }, { passive: true });
+
+            window.addEventListener('touchend', () => {
+                isDraggingCamera = false;
+            });
+
+            // Keyboard Shortcuts (Ignore when typing in Name/Class inputs)
+            window.addEventListener('keydown', (e) => {
+                const tag = document.activeElement ? document.activeElement.tagName : '';
+                if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+                if (isAnimating) return;
+
+                if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') {
+                    handleCommand('GO_STRAIGHT');
+                } else if (e.key === ' ') {
+                    e.preventDefault();
+                    handleCommand('CROSS_STREET');
+                } else if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
+                    handleCommand('TURN_LEFT');
+                } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
+                    handleCommand('TURN_RIGHT');
+                } else if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') {
+                    handleCommand('TURN_AROUND');
+                }
+            });
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        /**************************************************************
+         * 8. MAIN RENDER & ANIMATION LOOP
+         **************************************************************/
+        function animate(now) {
+            requestAnimationFrame(animate);
+
+            const time = (now || performance.now()) * 0.001;
+
+            // 1. Update Active Character Tween (Walk or Turn)
+            if (activeTween) {
+                const elapsed = (now || performance.now()) - activeTween.startTime;
+                const progress = Math.min(1, elapsed / activeTween.duration);
+                // Smooth ease-in-out
+                const ease = progress < 0.5
+                    ? 2 * progress * progress
+                    : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+
+                if (activeTween.type === 'ROTATE') {
+                    characterGroup.rotation.y = activeTween.startAngle + (activeTween.endAngle - activeTween.startAngle) * ease;
+                    // Subtle stepping motion while turning
+                    const swing = Math.sin(progress * Math.PI * 2) * 0.35;
+                    leftLegPivot.rotation.x = swing;
+                    rightLegPivot.rotation.x = -swing;
+                } else if (activeTween.type === 'WALK') {
+                    characterGroup.position.lerpVectors(activeTween.startPos, activeTween.endPos, ease);
+                    // Realistic walking swing for legs & arms
+                    const walkCycle = Math.sin(progress * Math.PI * 4) * 0.65;
+                    leftLegPivot.rotation.x = walkCycle;
+                    rightLegPivot.rotation.x = -walkCycle;
+                    leftArmPivot.rotation.x = -walkCycle * 0.8;
+                    rightArmPivot.rotation.x = walkCycle * 0.8;
+                    characterGroup.position.y = Math.abs(Math.sin(progress * Math.PI * 4)) * 0.22;
+                }
+
+                if (progress >= 1) {
+                    // Reset limbs & snap angle cleanly
+                    characterGroup.rotation.y = DIR_VECTORS[playerState.dir].angle;
+                    characterGroup.position.y = 0;
+                    leftLegPivot.rotation.x = 0;
+                    rightLegPivot.rotation.x = 0;
+                    leftArmPivot.rotation.x = 0;
+                    rightArmPivot.rotation.x = 0;
+
+                    activeTween = null;
+                    isAnimating = false;
+                    cameraOrbitOffset = 0; // Gently return camera behind character
+                    setButtonsDisabled(false);
+                    updateRouteHint();
+                    checkDestinationArrival();
+                }
+            } else {
+                // Idle breathing & head look animation
+                headGroup.rotation.y = Math.sin(time * 2.0) * 0.12;
+                leftArmPivot.rotation.z = 0.08 + Math.sin(time * 2.5) * 0.03;
+                rightArmPivot.rotation.z = -0.08 - Math.sin(time * 2.5) * 0.03;
+            }
+
+            // 2. Animate Target Beacon Arrow & Clouds
+            if (targetBeaconGroup) {
+                const arrow = targetBeaconGroup.getObjectByName('bouncingArrow');
+                if (arrow) {
+                    arrow.position.y = 4.4 + Math.sin(time * 4.5) * 0.65;
+                    arrow.rotation.y += 0.03;
+                }
+            }
+
+            clouds.forEach((c, idx) => {
+                c.position.x += 0.015 * ((idx % 2) + 1);
+                if (c.position.x > 60) c.position.x = -60;
+            });
+
+            // 3. Smooth Camera Chase (Behind Character so Left/Right buttons match screen Left/Right!)
+            if (characterGroup) {
+                if (cameraMode === 'FOLLOW') {
+                    const charAngle = characterGroup.rotation.y + cameraOrbitOffset;
+                    const dist = 16.5;
+                    const height = 11.5 * (cameraPitchOffset / 0.45);
+                    // Character faces local +Z, so behind the character is -sin(angle), -cos(angle)
+                    const desiredCamX = characterGroup.position.x - Math.sin(charAngle) * dist;
+                    const desiredCamZ = characterGroup.position.z - Math.cos(charAngle) * dist;
+
+                    camera.position.lerp(new THREE.Vector3(desiredCamX, height, desiredCamZ), 0.08);
+                    const lookTarget = new THREE.Vector3(
+                        characterGroup.position.x + Math.sin(characterGroup.rotation.y) * 4,
+                        2.2,
+                        characterGroup.position.z + Math.cos(characterGroup.rotation.y) * 4
+                    );
+                    camera.lookAt(lookTarget);
+                } else {
+                    // Bird's-Eye Town Overview
+                    camera.position.lerp(new THREE.Vector3(0, 62, 34), 0.06);
+                    camera.lookAt(new THREE.Vector3(0, 0, -2));
+                }
+            }
+
+            // 4. Update 3D-to-2D Floating Place Labels
+            buildingLabelElements.forEach(item => {
+                const pos = item.worldPos.clone();
+                pos.project(camera);
+
+                if (pos.z < 1) {
+                    const x = (pos.x * 0.5 + 0.5) * window.innerWidth;
+                    const y = (-(pos.y * 0.5) + 0.5) * window.innerHeight;
+                    item.element.style.left = `${x}px`;
+                    item.element.style.top = `${y}px`;
+                    item.element.style.opacity = '1';
+                } else {
+                    item.element.style.opacity = '0';
+                }
+            });
+
+            renderer.render(scene, camera);
+        }
+
+        window.onload = function () {
+            initThreeJS();
+            animate();
+        };
+    </script>
+</body>
+</html>
